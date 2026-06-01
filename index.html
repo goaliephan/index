@@ -15,7 +15,9 @@ body {
 }
 
 canvas {
-  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
 }
 
 #score {
@@ -23,6 +25,7 @@ canvas {
   top: 10px;
   left: 10px;
   font-size: 20px;
+  z-index: 2;
 }
 
 #gameOver {
@@ -32,6 +35,7 @@ canvas {
   transform: translate(-50%, -50%);
   display: none;
   text-align: center;
+  z-index: 3;
 }
 
 button {
@@ -48,13 +52,48 @@ button {
 <div id="score">Score: 0</div>
 
 <div id="gameOver">
-  <h1>ACCESS LOST</h1>
+  <h1>⚠ SYSTEM FAILURE</h1>
   <button onclick="restart()">RETRY</button>
 </div>
 
+<canvas id="matrix"></canvas>
 <canvas id="game"></canvas>
 
 <script>
+// MATRIX BACKGROUND
+const matrixCanvas = document.getElementById("matrix");
+const mtx = matrixCanvas.getContext("2d");
+
+matrixCanvas.width = window.innerWidth;
+matrixCanvas.height = window.innerHeight;
+
+const letters = "01ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const fontSize = 14;
+const columns = matrixCanvas.width / fontSize;
+const drops = [];
+
+for (let i = 0; i < columns; i++) drops[i] = 1;
+
+function drawMatrix() {
+  mtx.fillStyle = "rgba(0,0,0,0.05)";
+  mtx.fillRect(0, 0, matrixCanvas.width, matrixCanvas.height);
+
+  mtx.fillStyle = "#00ff00";
+  mtx.font = fontSize + "px monospace";
+
+  for (let i = 0; i < drops.length; i++) {
+    const text = letters[Math.floor(Math.random() * letters.length)];
+    mtx.fillText(text, i * fontSize, drops[i] * fontSize);
+
+    if (drops[i] * fontSize > matrixCanvas.height && Math.random() > 0.975) {
+      drops[i] = 0;
+    }
+    drops[i]++;
+  }
+}
+setInterval(drawMatrix, 33);
+
+// GAME
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
@@ -70,47 +109,59 @@ let frame = 0;
 let score = 0;
 let gameRunning = true;
 
-// SOUND (simple beep = hacking feel)
-function playHackSound() {
-  const ctxAudio = new (window.AudioContext || window.webkitAudioContext)();
-  const osc = ctxAudio.createOscillator();
-  const gain = ctxAudio.createGain();
+// TAP SOUND
+function tapSound() {
+  const audio = new (window.AudioContext || window.webkitAudioContext)();
+  const osc = audio.createOscillator();
+  const gain = audio.createGain();
 
   osc.connect(gain);
-  gain.connect(ctxAudio.destination);
+  gain.connect(audio.destination);
 
-  osc.frequency.value = 600;
+  osc.frequency.value = 700;
   osc.type = "square";
 
   osc.start();
-  gain.gain.exponentialRampToValueAtTime(0.00001, ctxAudio.currentTime + 0.15);
+  gain.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + 0.1);
+}
+
+// GLITCH SOUND
+function glitchSound() {
+  const audio = new (window.AudioContext || window.webkitAudioContext)();
+  const osc = audio.createOscillator();
+  const gain = audio.createGain();
+
+  osc.connect(gain);
+  gain.connect(audio.destination);
+
+  osc.frequency.setValueAtTime(100, audio.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(20, audio.currentTime + 0.5);
+
+  osc.start();
+  gain.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + 0.5);
 }
 
 // CONTROLS
 document.addEventListener("click", () => {
   if (!gameRunning) return;
   bird.velocity = lift;
-  playHackSound();
+  tapSound();
 });
 
 // GAME LOOP
 function loop() {
   if (!gameRunning) return;
 
-  ctx.fillStyle = "black";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // bird physics
   bird.velocity += gravity;
   bird.y += bird.velocity;
 
-  // draw bird (green node)
   ctx.fillStyle = "#00ff00";
   ctx.beginPath();
   ctx.arc(bird.x, bird.y, 10, 0, Math.PI * 2);
   ctx.fill();
 
-  // pipes
   if (frame % 90 === 0) {
     let top = Math.random() * (canvas.height / 2);
     let gap = 150;
@@ -121,18 +172,13 @@ function loop() {
     });
   }
 
-  pipes.forEach((p, i) => {
+  pipes.forEach((p) => {
     p.x -= 3;
 
     ctx.fillStyle = "#00ff00";
-
-    // top pipe
     ctx.fillRect(p.x, 0, 50, p.top);
-
-    // bottom pipe
     ctx.fillRect(p.x, canvas.height - p.bottom, 50, p.bottom);
 
-    // collision
     if (
       bird.x < p.x + 50 &&
       bird.x + 10 > p.x &&
@@ -141,14 +187,12 @@ function loop() {
       endGame();
     }
 
-    // score
     if (p.x === bird.x) {
       score++;
       document.getElementById("score").innerText = "Score: " + score;
     }
   });
 
-  // ground/ceiling collision
   if (bird.y > canvas.height || bird.y < 0) {
     endGame();
   }
@@ -157,8 +201,24 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
+// GLITCH EFFECT
+function glitchEffect() {
+  let i = 0;
+  const glitch = setInterval(() => {
+    canvas.style.transform =
+      `translate(${Math.random()*10}px, ${Math.random()*10}px) skew(${Math.random()*5}deg)`;
+    i++;
+    if (i > 10) {
+      clearInterval(glitch);
+      canvas.style.transform = "none";
+    }
+  }, 50);
+}
+
 function endGame() {
   gameRunning = false;
+  glitchSound();
+  glitchEffect();
   document.getElementById("gameOver").style.display = "block";
 }
 
