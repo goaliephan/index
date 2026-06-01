@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Cryptic Flappy</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body {
+  margin: 0;
+  overflow: hidden;
+  background: black;
+  font-family: monospace;
+  color: #00ff00;
+}
+
+canvas {
+  display: block;
+}
+
+#score {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  font-size: 20px;
+}
+
+#gameOver {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: none;
+  text-align: center;
+}
+
+button {
+  padding: 10px 20px;
+  background: black;
+  color: #00ff00;
+  border: 1px solid #00ff00;
+}
+</style>
+</head>
+
+<body>
+
+<div id="score">Score: 0</div>
+
+<div id="gameOver">
+  <h1>ACCESS LOST</h1>
+  <button onclick="restart()">RETRY</button>
+</div>
+
+<canvas id="game"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+let bird = { x: 80, y: 200, velocity: 0 };
+let gravity = 0.5;
+let lift = -10;
+
+let pipes = [];
+let frame = 0;
+let score = 0;
+let gameRunning = true;
+
+// SOUND (simple beep = hacking feel)
+function playHackSound() {
+  const ctxAudio = new (window.AudioContext || window.webkitAudioContext)();
+  const osc = ctxAudio.createOscillator();
+  const gain = ctxAudio.createGain();
+
+  osc.connect(gain);
+  gain.connect(ctxAudio.destination);
+
+  osc.frequency.value = 600;
+  osc.type = "square";
+
+  osc.start();
+  gain.gain.exponentialRampToValueAtTime(0.00001, ctxAudio.currentTime + 0.15);
+}
+
+// CONTROLS
+document.addEventListener("click", () => {
+  if (!gameRunning) return;
+  bird.velocity = lift;
+  playHackSound();
+});
+
+// GAME LOOP
+function loop() {
+  if (!gameRunning) return;
+
+  ctx.fillStyle = "black";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // bird physics
+  bird.velocity += gravity;
+  bird.y += bird.velocity;
+
+  // draw bird (green node)
+  ctx.fillStyle = "#00ff00";
+  ctx.beginPath();
+  ctx.arc(bird.x, bird.y, 10, 0, Math.PI * 2);
+  ctx.fill();
+
+  // pipes
+  if (frame % 90 === 0) {
+    let top = Math.random() * (canvas.height / 2);
+    let gap = 150;
+    pipes.push({
+      x: canvas.width,
+      top: top,
+      bottom: canvas.height - top - gap
+    });
+  }
+
+  pipes.forEach((p, i) => {
+    p.x -= 3;
+
+    ctx.fillStyle = "#00ff00";
+
+    // top pipe
+    ctx.fillRect(p.x, 0, 50, p.top);
+
+    // bottom pipe
+    ctx.fillRect(p.x, canvas.height - p.bottom, 50, p.bottom);
+
+    // collision
+    if (
+      bird.x < p.x + 50 &&
+      bird.x + 10 > p.x &&
+      (bird.y < p.top || bird.y > canvas.height - p.bottom)
+    ) {
+      endGame();
+    }
+
+    // score
+    if (p.x === bird.x) {
+      score++;
+      document.getElementById("score").innerText = "Score: " + score;
+    }
+  });
+
+  // ground/ceiling collision
+  if (bird.y > canvas.height || bird.y < 0) {
+    endGame();
+  }
+
+  frame++;
+  requestAnimationFrame(loop);
+}
+
+function endGame() {
+  gameRunning = false;
+  document.getElementById("gameOver").style.display = "block";
+}
+
+function restart() {
+  bird.y = 200;
+  bird.velocity = 0;
+  pipes = [];
+  score = 0;
+  frame = 0;
+  gameRunning = true;
+  document.getElementById("score").innerText = "Score: 0";
+  document.getElementById("gameOver").style.display = "none";
+  loop();
+}
+
+loop();
+</script>
+
+</body>
+</html>
